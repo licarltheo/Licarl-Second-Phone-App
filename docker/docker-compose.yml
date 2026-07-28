@@ -1,0 +1,54 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: licarl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: licarl
+      POSTGRES_PASSWORD: licarl_secret
+      POSTGRES_DB: licarl_phone
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U licarl -d licarl_phone']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: licarl-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: licarl-api
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://licarl:licarl_secret@postgres:5432/licarl_phone?schema=public
+      JWT_ACCESS_SECRET: change-me-in-production-access-secret-min-32
+      JWT_REFRESH_SECRET: change-me-in-production-refresh-secret-min-32
+      CORS_ORIGIN: http://localhost:5173,http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
